@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import CytoscapeComponent from "react-cytoscapejs";
+import InfoTable from "./InfoTable.jsx"; // Import the proper table component
 
 export default function ClusterGraph() {
   const [shipments, setShipments] = useState([]);
@@ -31,22 +32,18 @@ export default function ClusterGraph() {
       });
   }, []);
 
-  // UseMemo prevents the graph from re-calculating on every small state change
   const elements = useMemo(() => {
     if (!shipments.length) return [];
-
     const nodesMap = {};
     const edges = [];
 
     shipments.forEach((s, i) => {
-      // NOTE: Ensure these keys match your Google Sheet EXACTLY
       const origin = cleanString(s["Origin Country "] || s["Origin Country"]);
       const destination = cleanString(s["Destination Country"]);
       const exporter = cleanString(s["Exporter"]);
       const product = cleanString(s["Description"]);
 
       if (!origin || !destination) return;
-
       const color = s["COLOR"]?.trim() || "#FF4136";
 
       [origin, destination, exporter, product].forEach((name) => {
@@ -55,7 +52,6 @@ export default function ClusterGraph() {
         }
       });
 
-      // Ensure sources and targets exist before adding edge to avoid Cytoscape crash
       if (origin && product)
         edges.push({ data: { id: `e1-${i}`, source: origin, target: product, shipment: s, lineColor: color } });
       if (exporter && product)
@@ -67,40 +63,29 @@ export default function ClusterGraph() {
     return [...Object.values(nodesMap), ...edges];
   }, [shipments]);
 
-  // Safe Layout Runner
   useEffect(() => {
     if (cyRef.current && elements.length > 0) {
-      try {
-        cyRef.current.layout({ name: "cose", animate: false, padding: 50 }).run();
-        cyRef.current.fit();
-      } catch (e) {
-        console.warn("Layout failed:", e);
-      }
+      cyRef.current.layout({ name: "cose", animate: false, padding: 50 }).run();
+      cyRef.current.fit();
     }
   }, [elements]);
 
   if (loading) return <div style={{ padding: "20px" }}>Loading Graph...</div>;
-  if (elements.length === 0) return <div style={{ padding: "20px" }}>No graph data available.</div>;
 
   return (
-    <div style={{ position: "relative", height: "90vh", width: "100%", background: "#f8f9fa" }}>
+    <div style={{ position: "relative", height: "100vh", width: "100%", background: "#f8f9fa", overflow: "hidden" }}>
       <CytoscapeComponent
         elements={elements}
         style={{ width: "100%", height: "100%" }}
         cy={(cy) => {
           cyRef.current = cy;
-          
-          // Clear previous listeners to prevent memory leaks/multiple triggers
           cy.off("mouseover click");
-
           cy.on("mouseover", "edge", (evt) => {
             if (!lockedShipment) setHoveredShipment(evt.target.data("shipment"));
           });
-
           cy.on("mouseout", "edge", () => {
             if (!lockedShipment) setHoveredShipment(null);
           });
-
           cy.on("click", "edge", (evt) => {
             setLockedShipment(evt.target.data("shipment"));
           });
@@ -123,33 +108,62 @@ export default function ClusterGraph() {
           {
             selector: "edge",
             style: {
-              width: 2,
+              width: 3,
               "line-color": "data(lineColor)",
               "target-arrow-color": "data(lineColor)",
               "target-arrow-shape": "triangle",
               "curve-style": "bezier",
-              opacity: 0.7,
+              opacity: 0.8,
             },
           },
         ]}
       />
 
+      {/* --- TABLE ON THE LEFT --- */}
       {displayedShipment && (
         <div style={{
-          position: "absolute", top: 10, left: 10, zIndex: 1000,
-          background: "white", padding: "10px", borderRadius: "8px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)", maxWidth: "300px"
+          position: "absolute", top: 20, left: 20, zIndex: 1000,
+          background: "white", padding: "15px", borderRadius: "8px",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.15)", width: "380px",
+          maxHeight: "85vh", overflowY: "auto"
         }}>
-          <strong>Shipment Details</strong>
-          <div style={{ fontSize: "12px", marginTop: "5px" }}>
-             {/* Render your InfoTable or raw data here */}
-             <pre>{JSON.stringify(displayedShipment, null, 2)}</pre>
-          </div>
-          {lockedShipment && (
-             <button onClick={() => setLockedShipment(null)} style={{ marginTop: "10px", width: "100%" }}>
-               Close / Unlock
-             </button>
-          )}
+          <h4 style={{ marginBottom: "10px" }}>Shipment Details</h4>
+          <InfoTable shipment={displayedShipment} />
+        </div>
+      )}
+
+      {/* --- BUTTONS ON THE RIGHT --- */}
+      {displayedShipment && (
+        <div style={{
+          position: "absolute", top: 20, right: 20, zIndex: 1000,
+          display: "flex", flexDirection: "column", gap: "10px"
+        }}>
+          <button 
+            onClick={() => {
+                if (lockedShipment) {
+                    setLockedShipment(null);
+                } else {
+                    setLockedShipment(hoveredShipment);
+                }
+            }} 
+            style={{
+              padding: "10px 20px", cursor: "pointer", borderRadius: "5px",
+              border: "none", background: lockedShipment ? "#FF4136" : "#2ECC40",
+              color: "white", fontWeight: "bold", boxShadow: "0 2px 6px rgba(0,0,0,0.2)"
+            }}
+          >
+            {lockedShipment ? "🔓 Unlock Table" : "🔒 Lock Table"}
+          </button>
+
+          <button 
+            onClick={() => { setLockedShipment(null); setHoveredShipment(null); }}
+            style={{
+              padding: "10px 20px", cursor: "pointer", borderRadius: "5px",
+              border: "none", background: "#666", color: "white"
+            }}
+          >
+            Clear Selection
+          </button>
         </div>
       )}
     </div>
