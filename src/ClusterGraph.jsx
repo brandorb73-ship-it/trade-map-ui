@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import CytoscapeComponent from "react-cytoscapejs";
-import InfoTable from "./InfoTable.jsx"; // Import the proper table component
+import InfoTable from "./InfoTable.jsx";
 
 export default function ClusterGraph() {
   const [shipments, setShipments] = useState([]);
@@ -9,27 +9,20 @@ export default function ClusterGraph() {
   const [loading, setLoading] = useState(true);
 
   const cyRef = useRef(null);
+  const displayedShipment = lockedShipment || hoveredShipment;
 
   const cleanString = (str) => (str ? str.toString().replace(/\u200B/g, "").trim() : "");
-  const truncateLabel = (name, maxLength = 25) =>
-    name.length > maxLength ? name.slice(0, maxLength) + "…" : name;
-
-  const displayedShipment = lockedShipment || hoveredShipment;
 
   useEffect(() => {
     const url = import.meta.env.VITE_SHEET_API_URL;
     if (!url) return;
-
     fetch(url)
       .then((res) => res.json())
       .then((data) => {
         if (Array.isArray(data)) setShipments(data);
         setLoading(false);
       })
-      .catch((err) => {
-        console.error("Fetch error:", err);
-        setLoading(false);
-      });
+      .catch((err) => { console.error("Fetch error:", err); setLoading(false); });
   }, []);
 
   const elements = useMemo(() => {
@@ -48,7 +41,8 @@ export default function ClusterGraph() {
 
       [origin, destination, exporter, product].forEach((name) => {
         if (name && !nodesMap[name]) {
-          nodesMap[name] = { data: { id: name, label: truncateLabel(name) } };
+          // Label is now the full name; CSS handles the wrapping
+          nodesMap[name] = { data: { id: name, label: name } };
         }
       });
 
@@ -59,14 +53,12 @@ export default function ClusterGraph() {
       if (product && destination)
         edges.push({ data: { id: `e3-${i}`, source: product, target: destination, shipment: s, lineColor: color } });
     });
-
     return [...Object.values(nodesMap), ...edges];
   }, [shipments]);
 
   useEffect(() => {
     if (cyRef.current && elements.length > 0) {
       cyRef.current.layout({ name: "cose", animate: false, padding: 50 }).run();
-      cyRef.current.fit();
     }
   }, [elements]);
 
@@ -80,35 +72,32 @@ export default function ClusterGraph() {
         cy={(cy) => {
           cyRef.current = cy;
           cy.off("mouseover click");
-          cy.on("mouseover", "edge", (evt) => {
-            if (!lockedShipment) setHoveredShipment(evt.target.data("shipment"));
-          });
-          cy.on("mouseout", "edge", () => {
-            if (!lockedShipment) setHoveredShipment(null);
-          });
-          cy.on("click", "edge", (evt) => {
-            setLockedShipment(evt.target.data("shipment"));
-          });
+          cy.on("mouseover", "edge", (evt) => { if (!lockedShipment) setHoveredShipment(evt.target.data("shipment")); });
+          cy.on("mouseout", "edge", () => { if (!lockedShipment) setHoveredShipment(null); });
+          cy.on("click", "edge", (evt) => { setLockedShipment(evt.target.data("shipment")); });
         }}
         stylesheet={[
           {
             selector: "node",
             style: {
               label: "data(label)",
-              width: 60,
-              height: 40,
+              "width": "label", // This makes node width match text length
+              "height": "label", // This makes node height match text height
+              "padding": "10px",
               "background-color": "#0074D9",
-              color: "#fff",
+              "color": "#fff",
               "text-valign": "center",
               "text-halign": "center",
-              "font-size": 8,
+              "font-size": 10,
               "text-wrap": "wrap",
+              "text-max-width": "100px",
+              "shape": "round-rectangle"
             },
           },
           {
             selector: "edge",
             style: {
-              width: 3,
+              width: 4,
               "line-color": "data(lineColor)",
               "target-arrow-color": "data(lineColor)",
               "target-arrow-shape": "triangle",
@@ -119,50 +108,33 @@ export default function ClusterGraph() {
         ]}
       />
 
-      {/* --- TABLE ON THE LEFT --- */}
-      {displayedShipment && (
-        <div style={{
-          position: "absolute", top: 20, left: 20, zIndex: 1000,
-          background: "white", padding: "15px", borderRadius: "8px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.15)", width: "380px",
-          maxHeight: "85vh", overflowY: "auto"
-        }}>
-          <h4 style={{ marginBottom: "10px" }}>Shipment Details</h4>
-          <InfoTable shipment={displayedShipment} />
-        </div>
-      )}
-
-      {/* --- BUTTONS ON THE RIGHT --- */}
+      {/* --- BIGGER TABLE ON THE RIGHT --- */}
       {displayedShipment && (
         <div style={{
           position: "absolute", top: 20, right: 20, zIndex: 1000,
-          display: "flex", flexDirection: "column", gap: "10px"
+          background: "white", padding: "20px", borderRadius: "12px",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.2)", 
+          width: "450px", // Increased width
+          maxHeight: "85vh", overflowY: "auto"
         }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+             <h3 style={{ margin: 0 }}>Trade Details</h3>
+             <button 
+                onClick={() => setLockedShipment(lockedShipment ? null : hoveredShipment)}
+                style={{
+                    padding: "5px 15px", borderRadius: "20px", border: "none",
+                    background: lockedShipment ? "#FF4136" : "#2ECC40", color: "white", cursor: "pointer"
+                }}
+             >
+                {lockedShipment ? "Unlock" : "Lock"}
+             </button>
+          </div>
+          <InfoTable shipment={displayedShipment} />
           <button 
-            onClick={() => {
-                if (lockedShipment) {
-                    setLockedShipment(null);
-                } else {
-                    setLockedShipment(hoveredShipment);
-                }
-            }} 
-            style={{
-              padding: "10px 20px", cursor: "pointer", borderRadius: "5px",
-              border: "none", background: lockedShipment ? "#FF4136" : "#2ECC40",
-              color: "white", fontWeight: "bold", boxShadow: "0 2px 6px rgba(0,0,0,0.2)"
-            }}
+            onClick={() => {setLockedShipment(null); setHoveredShipment(null);}}
+            style={{ marginTop: "15px", width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", cursor: "pointer" }}
           >
-            {lockedShipment ? "🔓 Unlock Table" : "🔒 Lock Table"}
-          </button>
-
-          <button 
-            onClick={() => { setLockedShipment(null); setHoveredShipment(null); }}
-            style={{
-              padding: "10px 20px", cursor: "pointer", borderRadius: "5px",
-              border: "none", background: "#666", color: "white"
-            }}
-          >
-            Clear Selection
+            Close
           </button>
         </div>
       )}
