@@ -2,12 +2,13 @@ import React, { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Polyline, Marker } from "react-leaflet";
 import L from "leaflet";
 import InfoTable from "./InfoTable.jsx";
+import "leaflet/dist/leaflet.css";
 
-// Define the icon ONCE outside the component to prevent re-renders
+// Production-safe icon definition
 const customIcon = L.icon({
   iconUrl: "https://cdn-icons-png.flaticon.com/512/684/684908.png",
   iconSize: [25, 25],
-  iconAnchor: [12, 12]
+  iconAnchor: [12, 12],
 });
 
 export default function RouteMap() {
@@ -15,96 +16,124 @@ export default function RouteMap() {
   const [hoveredShipment, setHoveredShipment] = useState(null);
   const [locked, setLocked] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
     const url = import.meta.env.VITE_SHEET_API_URL;
+    
     if (!url) {
-      console.error("VITE_SHEET_API_URL is not defined!");
+      setErrorMessage("Configuration Error: VITE_SHEET_API_URL is not set in Vercel.");
       setLoading(false);
       return;
     }
 
     fetch(url)
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) {
+          // Captures 401, 404, 500 etc.
+          throw new Error(`Server returned ${res.status}: ${res.statusText}`);
+        }
+        return res.json();
+      })
       .then((data) => {
-        // SAFETY CHECK: Ensure data is an array
         if (Array.isArray(data)) {
           setShipments(data);
         } else {
-          console.error("Expected array from Google Sheets, got:", data);
+          console.error("Data is not an array:", data);
+          setErrorMessage("Data Format Error: The API did not return a list of shipments.");
         }
-        setLoading(false);
       })
       .catch((err) => {
         console.error("Fetch error:", err);
-        setLoading(false);
-      });
+        setErrorMessage(`Connection Error: ${err.message}`);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const handleMouseEnter = (shipment) => { if (!locked) setHoveredShipment(shipment); };
-  const handleMouseLeave = () => { if (!locked) setHoveredShipment(null); };
-  const handleClick = (shipment) => {
-    setLocked(!locked);
-    setHoveredShipment(!locked ? shipment : null);
+  const handleInteraction = (shipment, isClick) => {
+    if (isClick) {
+      setLocked(!locked);
+      setHoveredShipment(shipment);
+    } else if (!locked) {
+      setHoveredShipment(shipment);
+    }
   };
 
-  // If loading or no data, show a message instead of a blank screen
-  if (loading) return <div style={{padding: '20px'}}>Loading Trade Map...</div>;
-  if (!Array.isArray(shipments) || shipments.length === 0) {
-     return <div style={{padding: '20px'}}>No shipment data found. Check Google Sheet permissions.</div>;
-  }
+  if (loading) return <div style={statusStyle}><h3>🛰️ Loading Map Data...</h3></div>;
+  
+  if (errorMessage) return (
+    <div style={statusStyle}>
+      <h3 style={{ color: "#d93025" }}>⚠️ Map Failed to Load</h3>
+      <p>{errorMessage}</p>
+      <button onClick={() => window.location.reload()} style={btnStyle}>Retry</button>
+    </div>
+  );
 
   return (
-    <>
-      <MapContainer center={[20, 0]} zoom={2} style={{ height: "100vh", width: "100vw" }}>
+    <div className="map-wrapper" style={{ height: "100vh", width: "100vw" }}>
+      <MapContainer center={[20, 10]} zoom={3} style={{ height: "100%", width: "100%" }}>
         <TileLayer
           url="https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png"
           attribution='&copy; Stadia Maps'
         />
 
         {shipments.map((s, i) => {
-          const originLat = parseFloat(s["Origin latitude"]);
-          const originLng = parseFloat(s["Origin longitude"]);
-          const destLat = parseFloat(s["Destination latitude"]);
-          const destLng = parseFloat(s["Destination longitude"]);
-          const color = s["COLOR"] || "blue";
+          const lat1 = parseFloat(s["Origin latitude"]);
+          const lng1 = parseFloat(s["Origin longitude"]);
+          const lat2 = parseFloat(s["Destination latitude"]);
+          const lng2 = parseFloat(s["Destination longitude"]);
 
-          if ([originLat, originLng, destLat, destLng].some((v) => isNaN(v))) return null;
+          if ([lat1, lng1, lat2, lng2].some(isNaN)) return null;
+
+          const isSelected = hoveredShipment === s;
 
           return (
-            <React.Fragment key={`group-${i}`}>
+            <React.Fragment key={`shipment-${i}`}>
               <Polyline
-                positions={[[originLat, originLng], [destLat, destLng]]}
-                color={color}
-                weight={3}
+                positions={[[lat1, lng1], [lat2, lng2]]}
+                color={s["COLOR"] || "#0074D9"}
+                weight={isSelected ? 5 : 2}
+                opacity={isSelected ? 1 : 0.6}
                 eventHandlers={{
-                  mouseover: () => handleMouseEnter(s),
-                  mouseout: () => handleMouseLeave(),
-                  click: () => handleClick(s),
+                  mouseover: () => handleInteraction(s, false),
+                  mouseout: () => !locked && setHoveredShipment(null),
+                  click: () => handleInteraction(s, true),
                 }}
               />
-              <Marker position={[originLat, originLng]} icon={customIcon} />
-              <Marker position={[destLat, destLng]} icon={customIcon} />
+              <Marker position={[lat1, lng1]} icon={customIcon} />
+              <Marker position={[lat2, lng2]} icon={customIcon} />
             </React.Fragment>
           );
         })}
       </MapContainer>
 
+      {/* Info Panel using your index.css classes */}
       {hoveredShipment && (
-        <div style={{
-            position: "fixed", right: "20px", top: "25%", width: "380px",
-            maxHeight: "55%", backgroundColor: "#fff", border: "1px solid #ccc",
-            borderRadius: "5px", padding: "10px", zIndex: 1000,
-            display: "flex", flexDirection: "column", boxShadow: "0 4px 8px rgba(0,0,0,0.2)"
-          }}>
-          <button onClick={() => setLocked(!locked)} style={{ marginBottom: "10px", cursor: "pointer" }}>
-            {locked ? "Unlock Table" : "Lock Table"}
-          </button>
-          <div style={{ overflowY: "auto" }}>
-            <InfoTable shipment={hoveredShipment} />
+        <div className="info-table-wrapper">
+          <div className="info-table-actions">
+            <button onClick={() => {setLocked(false); setHoveredShipment(null);}}>Close</button>
+            <button 
+              onClick={() => setLocked(!locked)} 
+              style={{ backgroundColor: locked ? "#ff4136" : "#0074d9", color: "white", border: "none", borderRadius: "4px" }}
+            >
+              {locked ? "Unlock" : "Lock Details"}
+            </button>
+          </div>
+          <div className="info-table-content">
+             <InfoTable shipment={hoveredShipment} locked={locked} />
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
+
+const statusStyle = {
+  display: "flex", flexDirection: "column", height: "100vh", 
+  alignItems: "center", justifyContent: "center", fontFamily: "sans-serif"
+};
+
+const btnStyle = {
+  marginTop: "10px", padding: "8px 16px", cursor: "pointer", 
+  background: "#0074D9", color: "white", border: "none", borderRadius: "4px"
+};
