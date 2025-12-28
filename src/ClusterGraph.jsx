@@ -41,7 +41,6 @@ export default function ClusterGraph() {
 
       [origin, destination, exporter, product].forEach((name) => {
         if (name && !nodesMap[name]) {
-          // Label is now the full name; CSS handles the wrapping
           nodesMap[name] = { data: { id: name, label: name } };
         }
       });
@@ -81,17 +80,19 @@ export default function ClusterGraph() {
             selector: "node",
             style: {
               label: "data(label)",
-              "width": "label", // This makes node width match text length
-              "height": "label", // This makes node height match text height
-              "padding": "10px",
+              "width": "label", // Shrink/Grow width to fit text
+              "height": "label", // Shrink/Grow height to fit text
+              "padding": "12px", // Space inside the blue box
               "background-color": "#0074D9",
               "color": "#fff",
               "text-valign": "center",
               "text-halign": "center",
-              "font-size": 10,
+              "font-size": "10px",
               "text-wrap": "wrap",
-              "text-max-width": "100px",
-              "shape": "round-rectangle"
+              "text-max-width": "120px",
+              "shape": "round-rectangle",
+              "border-width": 2,
+              "border-color": "#005bb5"
             },
           },
           {
@@ -108,34 +109,33 @@ export default function ClusterGraph() {
         ]}
       />
 
-      {/* --- BIGGER TABLE ON THE RIGHT --- */}
+      {/* --- ENLARGED TABLE ON THE RIGHT --- */}
       {displayedShipment && (
         <div style={{
-          position: "absolute", top: 20, right: 20, zIndex: 1000,
-          background: "white", padding: "20px", borderRadius: "12px",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.2)", 
-          width: "450px", // Increased width
-          maxHeight: "85vh", overflowY: "auto"
+          position: "absolute", top: "20px", right: "20px", zIndex: 1000,
+          background: "white", padding: "25px", borderRadius: "12px",
+          boxShadow: "0 10px 40px rgba(0,0,0,0.25)", 
+          width: "500px", // Wider as requested
+          maxHeight: "85vh", overflowY: "auto",
+          border: "1px solid #eee"
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-             <h3 style={{ margin: 0 }}>Trade Details</h3>
-             <button 
-                onClick={() => setLockedShipment(lockedShipment ? null : hoveredShipment)}
-                style={{
-                    padding: "5px 15px", borderRadius: "20px", border: "none",
-                    background: lockedShipment ? "#FF4136" : "#2ECC40", color: "white", cursor: "pointer"
-                }}
-             >
-                {lockedShipment ? "Unlock" : "Lock"}
-             </button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+             <h2 style={{ margin: 0, fontSize: '18px' }}>Trade Record</h2>
+             <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                    onClick={() => setLockedShipment(lockedShipment ? null : hoveredShipment)}
+                    style={{
+                        padding: "6px 15px", borderRadius: "6px", border: "none",
+                        background: lockedShipment ? "#FF4136" : "#2ECC40", color: "white", cursor: "pointer", fontWeight: 'bold'
+                    }}
+                >
+                    {lockedShipment ? "Unlock" : "Lock"}
+                </button>
+                <button onClick={() => {setLockedShipment(null); setHoveredShipment(null);}} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: '18px' }}>✕</button>
+             </div>
           </div>
+          <hr style={{ marginBottom: '15px', border: '0.5px solid #eee' }} />
           <InfoTable shipment={displayedShipment} />
-          <button 
-            onClick={() => {setLockedShipment(null); setHoveredShipment(null);}}
-            style={{ marginTop: "15px", width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #ccc", cursor: "pointer" }}
-          >
-            Close
-          </button>
         </div>
       )}
     </div>
