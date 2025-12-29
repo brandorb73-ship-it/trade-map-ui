@@ -29,7 +29,7 @@ export default function ClusterGraph() {
     const edges = [];
 
     shipments.forEach((s, i) => {
-      // Use the exact keys from your Google Sheet
+      // Reverting to the exact key logic that worked for your links
       const origin = s["Origin Country"] || s["Origin Country "]; 
       const destination = s["Destination Country"];
       const exporter = s["Exporter"];
@@ -38,14 +38,14 @@ export default function ClusterGraph() {
       if (!origin || !destination) return;
       const color = s["COLOR"] || "#FF4136";
 
-      // Create Nodes
+      // Build Nodes
       [origin, destination, exporter, product].forEach((name) => {
         if (name && !nodesMap[name]) {
-          nodesMap[name] = { data: { id: String(name), label: String(name) } };
+          nodesMap[name] = { data: { id: name, label: name } };
         }
       });
 
-      // Create Links (Edges)
+      // Build Edges (The Links)
       if (origin && product)
         edges.push({ data: { id: `e1-${i}`, source: origin, target: product, shipment: s, lineColor: color } });
       if (exporter && product)
@@ -67,7 +67,7 @@ export default function ClusterGraph() {
   if (loading) return <div style={{ padding: "20px" }}>Loading Graph...</div>;
 
   return (
-    <div style={{ position: "relative", height: "100vh", width: "100vw", background: "#f8f9fa", overflow: "hidden" }}>
+    <div style={{ position: "relative", height: "100vh", width: "100vw", background: "#f8f9fa" }}>
       <CytoscapeComponent
         elements={elements}
         style={{ width: "100%", height: "100%" }}
@@ -91,49 +91,62 @@ export default function ClusterGraph() {
               "text-valign": "center",
               "text-halign": "center",
               "font-size": "12px",
-              "text-wrap": "wrap",
-              "text-max-width": "150px",
               "shape": "round-rectangle",
             },
           },
           {
             selector: "edge",
             style: {
-              width: 5,
+              width: 3,
               "line-color": "data(lineColor)",
               "target-arrow-color": "data(lineColor)",
               "target-arrow-shape": "triangle",
               "curve-style": "bezier",
-              opacity: 0.9,
+              opacity: 0.8,
             },
           },
         ]}
       />
 
-      {/* --- WIDE INFO TABLE ON THE RIGHT --- */}
+      {/* --- BIGGER TABLE ON THE LEFT --- */}
       {displayedShipment && (
         <div style={{
-          position: "absolute", top: "20px", right: "20px", zIndex: 9999,
-          background: "white", padding: "25px", borderRadius: "12px",
-          boxShadow: "0 10px 40px rgba(0,0,0,0.3)", width: "500px", 
-          maxHeight: "85vh", overflowY: "auto", border: "1px solid #ddd"
+          position: "absolute", top: "20px", left: "20px", zIndex: 1000,
+          background: "white", padding: "20px", borderRadius: "12px",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.15)", width: "450px", 
+          maxHeight: "85vh", overflowY: "auto"
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-             <h2 style={{ margin: 0, fontSize: '20px' }}>Trade Record</h2>
-             <div style={{ display: 'flex', gap: '10px' }}>
-                <button 
-                    onClick={() => setLockedShipment(lockedShipment ? null : hoveredShipment)}
-                    style={{
-                        padding: "8px 16px", borderRadius: "8px", border: "none",
-                        background: lockedShipment ? "#FF4136" : "#2ECC40", color: "white", cursor: "pointer", fontWeight: 'bold'
-                    }}
-                >
-                    {lockedShipment ? "🔓 Unlock" : "🔒 Lock"}
-                </button>
-                <button onClick={() => {setLockedShipment(null); setHoveredShipment(null);}} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer' }}>✕</button>
-             </div>
-          </div>
+          <h3 style={{ marginTop: 0 }}>Shipment Data</h3>
           <InfoTable shipment={displayedShipment} />
+        </div>
+      )}
+
+      {/* --- BUTTONS ON THE RIGHT --- */}
+      {displayedShipment && (
+        <div style={{
+          position: "absolute", top: "20px", right: "20px", zIndex: 1000,
+          display: "flex", flexDirection: "column", gap: "10px"
+        }}>
+          <button 
+            onClick={() => setLockedShipment(lockedShipment ? null : hoveredShipment)}
+            style={{
+              padding: "12px 24px", borderRadius: "8px", border: "none",
+              background: lockedShipment ? "#FF4136" : "#2ECC40", 
+              color: "white", cursor: "pointer", fontWeight: "bold", fontSize: "14px"
+            }}
+          >
+            {lockedShipment ? "🔓 Unlock Table" : "🔒 Lock Table"}
+          </button>
+          
+          <button 
+            onClick={() => { setLockedShipment(null); setHoveredShipment(null); }}
+            style={{
+              padding: "10px", borderRadius: "8px", border: "1px solid #ccc",
+              background: "white", cursor: "pointer"
+            }}
+          >
+            Close / Clear
+          </button>
         </div>
       )}
     </div>
